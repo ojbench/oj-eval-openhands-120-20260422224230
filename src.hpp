@@ -1,25 +1,6 @@
 #pragma once
 #include <vector>
-#include <unordered_map>
-#include <cstddef>
-#include <string>
-#include <iostream>
-
-class Task {
-public:
-    Task(std::string name, std::size_t time, std::size_t period)
-        : name(name), first_interval(time), period(period) {}
-    void set() {}
-    std::size_t getFirstInterval() const { return first_interval; }
-    std::size_t getPeriod() const { return period; }
-    void execute() { std::cout << "Task: " << name << " excuted" << std::endl; }
-    static void incTime() {}
-    static std::size_t getCnt() { return 0; }
-private:
-    std::string name;
-    const std::size_t first_interval;
-    const std::size_t period;
-};
+#include "Task.hpp"
 
 class TaskNode {
     friend class Timer;
@@ -62,6 +43,7 @@ public:
         long long exec_time = current_time + first;
         if (exec_time < current_time) exec_time = current_time;
         node->time = exec_time;
+        if (exec_time >= static_cast<long long>(buckets.size())) buckets.resize(exec_time + 1);
         buckets[exec_time].push_back(node);
         all_nodes.push_back(node);
         return node;
@@ -73,28 +55,30 @@ public:
     }
 
     std::vector<Task*> tick() {
+        Task::incTime();
         ++current_time;
         std::vector<Task*> ready;
-        auto it = buckets.find(current_time);
-        if (it != buckets.end()) {
-            auto& vec = it->second;
+        if (current_time < static_cast<long long>(buckets.size())) {
+            auto& vec = buckets[current_time];
             for (TaskNode* node : vec) {
                 if (!node || !node->active) continue;
                 ready.push_back(node->task);
                 if (node->period > 0 && node->active) {
-                    node->time = current_time + node->period;
-                    buckets[node->time].push_back(node);
+                    long long nt = current_time + node->period;
+                    node->time = nt;
+                    if (nt >= static_cast<long long>(buckets.size())) buckets.resize(nt + 1);
+                    buckets[nt].push_back(node);
                 } else {
                     node->active = false;
                 }
             }
-            buckets.erase(it);
+            vec.clear();
         }
         return ready;
     }
 
 private:
     long long current_time;
-    std::unordered_map<long long, std::vector<TaskNode*>> buckets;
+    std::vector<std::vector<TaskNode*>> buckets;
     std::vector<TaskNode*> all_nodes;
 };
